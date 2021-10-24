@@ -1,0 +1,154 @@
+package main
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"log"
+	"net"
+
+	empty "github.com/golang/protobuf/ptypes/empty"
+	_ "github.com/lib/pq"
+	"github.com/pkg/errors"
+	"github.com/satori/uuid"
+	"google.golang.org/grpc"
+
+	pb "github.com/Yusuf-1999/crudapp/proto"
+	"github.com/Yusuf-1999/crudapp/utils"
+)
+
+type server struct {
+	conn *sql.DB
+	pb.UnimplementedUserProfilesServer
+}
+
+func (connection *server) CreateUserProfile(ctx context.Context, req *pb.CreateUserProfileRequest) (*pb.UserProfile, error) {
+
+	db := connection.conn
+	id := uuid.NewV4()
+
+	req.UserProfile.Id = id.String()
+	firstname := req.GetUserProfile().GetFirstName()
+	lastname := req.GetUserProfile().GetLastName()
+	email := req.GetUserProfile().GetEmail()
+
+	sqlStatement := `INSERT INTO users ( id, first_name, last_name, email) VALUES ($1, $2, $3, $4)`
+
+	if _, err := db.Exec(sqlStatement, id, firstname, lastname, email); err != nil {
+		return nil, errors.Wrap(err, "User couldn't be inserted")
+	}
+
+	return req.UserProfile, nil
+}
+
+func (connection *server) GetUserProfile(ctx context.Context, req *pb.GetUserProfileRequest) (*pb.UserProfile, error) {
+	db := connection.conn
+	id := req.GetId()
+
+	sqlStatement := `select * from users where id=$1`
+
+	var first, last, email, uid string
+
+	err := db.QueryRow(sqlStatement, id).Scan(&first, &last, &email, &uid)
+
+	if err != nil {
+		errors.Wrap(err, "UserProfile couldn't be returned")
+	}
+
+	res := &pb.UserProfile{
+		FirstName: first,
+		LastName:  last,
+		Email:     email,
+		Id:        id,
+	}
+
+	return res, nil
+}
+
+func (connection *server) UpdateUserProfile(ctx context.Context, req *pb.UpdateUserProfileRequest) (*pb.UserProfile, error) {
+
+	db := connection.conn
+
+	sqlStatement := `UPDATE users SET first_name=$1, last_name=$2,email=$3 WHERE "id" =$4;`
+
+	if _, err := db.Exec(sqlStatement, req.UserProfile.FirstName, req.UserProfile.LastName, req.UserProfile.Email, req.UserProfile.Id); err != nil {
+		return nil, err
+	}
+
+	return req.UserProfile, nil
+}
+
+func (connection *server) ListUsersProfiles(ctx context.Context, req *pb.ListUsersProfilesRequest) (*pb.ListUsersProfilesResponse, error) {
+
+	db := connection.conn
+	id := req.GetQuery() + "%"
+
+	sqlStatement := `select * from users where first_name like $1`
+
+	result, err := db.Query(sqlStatement, id)
+
+	defer result.Close()
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	res := []*pb.UserProfile{}
+
+	for result.Next() {
+		var first, last, email, id string
+		if err = result.Scan(&first, &last, &email, &id); err != nil {
+			errors.Wrap(err, "Users couln't be listed")
+		}
+		u := pb.UserProfile{
+			FirstName: first,
+			LastName:  last,
+			Email:     email,
+			Id:        id,
+		}
+		res = append(res, &u)
+	}
+
+	ans := pb.ListUsersProfilesResponse{Profiles: res}
+
+	return &ans, nil
+}
+
+func (connection *server) DeleteUserProfile(ctx context.Context, req *pb.DeleteUserProfileRequest) (*empty.Empty, error) {
+
+	db := connection.conn
+	id := req.GetId()
+
+	sqlStatement := `DELETE FROM users WHERE id=$1`
+
+	if _, err := db.Exec(sqlStatement, id); err != nil {
+		errors.Wrap(err, "User couldn't be deleted")
+	}
+
+	return &empty.Empty{}, nil
+}
+
+func main() {
+
+	fmt.Println("Welcome to the server")
+
+	lis, err := net.Listen("tcp", ":9500")
+
+	if err != nil {
+		errors.Wrap(err, " Failed to listen the port")
+	}
+
+	s := grpc.NewServer()
+
+	db, err := sql.Open("postgres", utils.Config)
+
+	if err != nil {
+		log.Print(err)
+	}
+
+	pb.RegisterUserProfilesServer(s, &server{conn: db})
+
+	if err := s.Serve(lis); err != nil {
+		errors.Wrap(err, "Failed to server the listener")
+	}
+}

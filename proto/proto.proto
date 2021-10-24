@@ -1,0 +1,50 @@
+syntax="proto3";
+
+package proto;
+
+option go_package = "github.com/Yusuf-1999/crudapp/proto";
+
+
+import "google/protobuf/empty.proto";
+
+
+service UserProfiles {
+    rpc CreateUserProfile (CreateUserProfileRequest) returns (UserProfile){}
+    rpc GetUserProfile (GetUserProfileRequest) returns (UserProfile){}
+    rpc DeleteUserProfile (DeleteUserProfileRequest) returns (google.protobuf.Empty){}
+    rpc UpdateUserProfile (UpdateUserProfileRequest) returns (UserProfile){}
+    rpc ListUsersProfiles (ListUsersProfilesRequest) returns (ListUsersProfilesResponse){}
+
+}
+
+message UserProfile {
+    string id = 1;
+    string email = 2 ;     
+    string first_name = 3 ;
+    string last_name = 4 ;
+}
+
+message CreateUserProfileRequest {
+    UserProfile user_profile = 1 ;
+}
+
+message GetUserProfileRequest {
+    string id = 1;
+}
+
+message DeleteUserProfileRequest {
+    string id = 1 ;
+}
+
+message UpdateUserProfileRequest {
+    UserProfile user_profile = 1 ;
+
+}
+
+message ListUsersProfilesRequest{
+    string query = 1;
+}
+
+message ListUsersProfilesResponse{
+    repeated UserProfile profiles = 1;
+}
