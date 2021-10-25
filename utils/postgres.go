@@ -4,8 +4,8 @@ import "fmt"
 
 var (
 	dbHost     = "localhost"
-	dbUser     = "yusufkhuja"
-	dbPassword = "y6451895"
+	dbUser     = ""
+	dbPassword = ""
 	dbName     = "crud_app"
 	dbPort     = 5432
 )
